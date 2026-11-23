@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DESAPEGO · Pagamento</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="topo">
+    <h1>DESAPEGO</h1>
+    <a class="voltar" href="/">← Voltar à lista</a>
+  </header>
+  <main>
+    <div class="painel" id="mensagem"></div>
+  </main>
+  <script>
+    (function () {
+      var status = new URLSearchParams(window.location.search).get('status');
+      var textos = {
+        sucesso: ['Pagamento aprovado', 'Obrigado! Seu pagamento foi aprovado. O vendedor entrará em contato para combinar a entrega.', 'sucesso'],
+        pendente: ['Pagamento em análise', 'Seu pagamento está em análise. Assim que for aprovado, a compra será registrada.', 'info'],
+        falha: ['Pagamento não concluído', 'O pagamento não foi concluído. Você pode tentar novamente pelo item, enquanto a reserva estiver ativa.', 'erro']
+      };
+      var t = textos[status] || ['Retorno do pagamento', 'Acompanhe o status com o vendedor.', 'info'];
+      var box = document.getElementById('mensagem');
+      var titulo = document.createElement('h2');
+      titulo.textContent = t[0];
+      var corpo = document.createElement('p');
+      corpo.textContent = t[1];
+      box.appendChild(titulo);
+      box.appendChild(corpo);
+    })();
+  </script>
+</body>
+</html>

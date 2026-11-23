@@ -1,0 +1,21 @@
+{
+  "name": "desapego-arrivoinitalia",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vitrine de venda de itens usados para vizinhos, com reserva, fila e pagamento",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test --no-warnings tests/*.test.js"
+  },
+  "dependencies": {
+    "cookie-parser": "^1.4.7",
+    "express": "^4.22.3",
+    "multer": "^2.5.0",
+    "qrcode": "^1.5.4"
+  }
+}

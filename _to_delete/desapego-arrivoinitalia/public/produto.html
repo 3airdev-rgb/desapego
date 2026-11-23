@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DESAPEGO · Item</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <header class="topo">
+    <h1>DESAPEGO</h1>
+    <a class="voltar" href="/">← Voltar à lista</a>
+  </header>
+  <main>
+    <div id="erro" class="aviso erro oculto"></div>
+    <div id="conteudo" class="produto-layout oculto">
+      <section>
+        <div class="carrossel" id="carrossel">
+          <div class="trilho" id="trilho" aria-label="Fotos do item"></div>
+          <div class="setas">
+            <button type="button" id="anterior" aria-label="Foto anterior">‹</button>
+            <button type="button" id="proxima" aria-label="Próxima foto">›</button>
+          </div>
+          <div class="pontos" id="pontos"></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="painel">
+          <span id="etiqueta" class="etiqueta"></span>
+          <h2 id="nome" style="font-size:1.25rem"></h2>
+          <p id="descricao" class="suave"></p>
+          <p id="entrega" class="suave"></p>
+          <div id="precos"></div>
+          <a id="duvidas" class="botao secundario" target="_blank" rel="noopener">Tirar dúvidas pelo WhatsApp</a>
+        </div>
+
+        <div class="painel" id="painelReserva">
+          <h2>Tenho interesse</h2>
+          <div id="estadoReserva"></div>
+          <form id="formInteresse" class="oculto">
+            <label for="nomeInteresse">Seu nome</label>
+            <input id="nomeInteresse" name="nome" autocomplete="name" required minlength="2">
+            <label for="telInteresse">WhatsApp com DDD</label>
+            <input id="telInteresse" name="telefone" inputmode="tel" autocomplete="tel" required>
+            <button class="botao" type="submit">Tenho interesse (reservar por <span id="horas"></span> h)</button>
+          </form>
+        </div>
+
+        <div class="painel oculto" id="painelPagamento">
+          <h2>Forma de pagamento</h2>
+          <div id="aviso" class="aviso info oculto"></div>
+          <button class="botao" id="btnPix" type="button">Pagar à vista com Pix</button>
+          <div id="blocoPix" class="oculto">
+            <p class="suave">Escaneie o QR code ou copie o código abaixo no app do seu banco.</p>
+            <div id="qrPix" style="max-width:240px;margin:10px auto" aria-label="QR code do Pix"></div>
+            <div class="copia-cola" id="copiaCola"></div>
+            <button class="botao secundario" id="btnCopiar" type="button">Copiar código Pix</button>
+            <p class="suave" id="instrucaoPix"></p>
+          </div>
+          <button class="botao" id="btnCartao" type="button">Pagar com cartão em até 6x</button>
+          <p class="suave" id="textoCartao"></p>
+        </div>
+      </section>
+    </div>
+  </main>
+  <script src="/js/produto.js"></script>
+</body>
+</html>

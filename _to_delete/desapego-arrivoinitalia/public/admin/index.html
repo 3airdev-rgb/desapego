@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>DESAPEGO · Painel</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .linha { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .linha > * { flex: 1 1 200px; }
+    .lista-produtos li { display: flex; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--borda); list-style: none; }
+    .lista-produtos { padding: 0; margin: 0; }
+    .miniaturas { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 10px; }
+    .miniatura { border: 1px solid var(--borda); border-radius: 8px; overflow: hidden; background: #fff; }
+    .miniatura img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; display: block; }
+    .miniatura .acoes { display: flex; justify-content: space-between; padding: 4px; }
+    .miniatura button { font-size: 0.8rem; padding: 4px 6px; border: 1px solid var(--borda); background: #fff; border-radius: 6px; cursor: pointer; }
+    .fila-item { border-bottom: 1px solid var(--borda); padding: 10px 0; }
+    .fila-item .acoes { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+    .fila-item .acoes a, .fila-item .acoes button { font-size: 0.88rem; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--laranja); background: #fff; color: var(--laranja-escuro); cursor: pointer; text-decoration: none; }
+    .fila-item .acoes .primario { background: var(--laranja); color: #fff; }
+    .secao-oculta { display: none; }
+  </style>
+</head>
+<body>
+  <header class="topo">
+    <h1>DESAPEGO · Painel</h1>
+    <button id="sair" class="botao secundario oculto" style="width:auto;margin:0;padding:8px 12px">Sair</button>
+  </header>
+
+  <main>
+    <!-- Login -->
+    <section id="login" class="painel secao-oculta">
+      <h2>Entrar</h2>
+      <form id="formLogin">
+        <label for="senha">Senha de administrador</label>
+        <input id="senha" type="password" autocomplete="current-password" required>
+        <button class="botao" type="submit">Entrar</button>
+      </form>
+      <div id="erroLogin" class="aviso erro secao-oculta"></div>
+    </section>
+
+    <!-- Lista de produtos -->
+    <section id="painelLista" class="secao-oculta">
+      <div class="painel">
+        <div class="linha">
+          <h2 style="margin:0;flex:2">Produtos</h2>
+          <button class="botao" id="novo" type="button" style="flex:0 0 auto;width:auto;margin:0">Novo produto</button>
+        </div>
+        <ul class="lista-produtos" id="listaProdutos"></ul>
+      </div>
+    </section>
+
+    <!-- Editor de produto -->
+    <section id="painelEditor" class="secao-oculta">
+      <button class="botao secundario" id="voltarLista" type="button" style="width:auto;margin:0 0 12px;padding:8px 12px">← Produtos</button>
+
+      <div class="painel">
+        <h2 id="tituloEditor">Novo produto</h2>
+        <form id="formProduto">
+          <label for="nome">Nome</label>
+          <input id="nome" required minlength="2">
+          <label for="descricao">Descrição</label>
+          <textarea id="descricao"></textarea>
+          <div class="linha">
+            <div>
+              <label for="precoAvista">Preço à vista (R$)</label>
+              <input id="precoAvista" inputmode="decimal" placeholder="ex.: 2.500,00">
+            </div>
+            <div>
+              <label for="prazoEntrega">Prazo de entrega</label>
+              <input id="prazoEntrega" placeholder="imediata, a combinar, fev/2027">
+            </div>
+          </div>
+          <label style="display:flex;align-items:center;gap:8px;margin-top:14px;color:var(--texto)">
+            <input id="publicado" type="checkbox" style="width:auto"> Disponibilizar para venda
+          </label>
+          <p class="suave">Produtos não disponibilizados não aparecem para os interessados.</p>
+          <button class="botao" type="submit">Salvar produto</button>
+        </form>
+        <div id="avisoProduto" class="aviso oculto"></div>
+      </div>
+
+      <div class="painel" id="painelFotos">
+        <h2>Fotos (carrossel)</h2>
+        <p class="suave">Até 12 fotos por item, JPEG, PNG ou WEBP, de até 8 MB cada. A ordem aqui é a ordem do carrossel.</p>
+        <input id="arquivos" type="file" accept="image/jpeg,image/png,image/webp" multiple>
+        <button class="botao secundario" id="enviarFotos" type="button">Enviar fotos</button>
+        <div class="miniaturas" id="miniaturas" style="margin-top:12px"></div>
+      </div>
+
+      <div class="painel" id="painelFila">
+        <h2>Interessados e fila</h2>
+        <div id="listaFila"></div>
+        <div class="linha" style="margin-top:12px">
+          <button class="botao secundario" id="reabrir" type="button" style="width:auto;margin:0">Reabrir item (liberar)</button>
+          <button class="botao" id="vender" type="button" style="width:auto;margin:0">Registrar venda (reserva ativa)</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="/admin/admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+# Acrescente este bloco ao Caddyfile existente (o mesmo que atende o ArremataFlow),
+# sem alterar os blocos atuais, e recarregue o Caddy. O HTTPS é emitido pelo próprio Caddy.
+# O Caddy precisa estar na rede Docker arremataflow_default (já está, pois atende o ArremataFlow).
+
+desapego.arrivoinitalia.com {
+	encode gzip
+	reverse_proxy desapego:3111
+}

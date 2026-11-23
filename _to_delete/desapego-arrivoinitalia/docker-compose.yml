@@ -1,0 +1,20 @@
+# Execução local com Docker Desktop:  docker compose up --build
+# Acesse: http://localhost:3111  (painel em /admin)
+
+services:
+  app:
+    build: .
+    image: desapego-arrivoinitalia:local
+    ports:
+      - "3111:3111"
+    env_file:
+      - .env
+    environment:
+      # Sobrescreve valores do .env apenas para o ambiente local.
+      PORT: "3111"
+      DATA_DIR: /app/data
+      PUBLIC_BASE_URL: http://localhost:3111
+    volumes:
+      # Banco SQLite e fotos ficam na pasta ./data do seu computador.
+      - ./data:/app/data
+    restart: unless-stopped
