@@ -90,6 +90,10 @@ const config = {
     chave: process.env.PIX_CHAVE || '',
     nomeRecebedor: process.env.PIX_NOME || 'CLEO M GARCIA',
     cidade: process.env.PIX_CIDADE || 'FLORIANOPOLIS',
+    // Exibidos no aviso "Atenção" do Pix, para o comprador conferir o destinatário.
+    titular: process.env.PIX_TITULAR || '',
+    banco: process.env.PIX_BANCO || '',
+    cpf: (process.env.PIX_CPF || '').replace(/\D/g, ''),
   },
 
   // Cartão por link de pagamento do Mercado Pago (um link por produto, cadastrado no painel).

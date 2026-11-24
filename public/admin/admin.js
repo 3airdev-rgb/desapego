@@ -95,7 +95,6 @@
     $('descricao').value = p ? p.descricao : '';
     $('precoAvista').value = p && p.precoAvistaCents ? (p.precoAvistaCents / 100).toFixed(2).replace('.', ',') : '';
     $('prazoEntrega').value = p ? p.prazoEntrega : '';
-    $('linkCartao').value = p ? p.linkCartao : '';
     $('publicado').checked = p ? p.publicado : false;
     $('painelFotos').classList.remove('secao-oculta');
     $('painelFila').classList.toggle('secao-oculta', !p);
@@ -197,7 +196,6 @@
       descricao: $('descricao').value,
       precoAvista: $('precoAvista').value,
       prazoEntrega: $('prazoEntrega').value,
-      linkCartao: $('linkCartao').value,
       publicado: $('publicado').checked,
     };
     try {
@@ -250,6 +248,18 @@
       detalhe.textContent = `${rotulo}${expira} · ${r.telefone}`;
       item.appendChild(titulo);
 
+      if (r.pagamentoEscolhido) {
+        const forma = {
+          pix: 'Pix',
+          cartao_link: 'cartão: pediu o link de pagamento pelo WhatsApp',
+          cartao_local: 'cartão: pagamento no local',
+        }[r.pagamentoEscolhido] || r.pagamentoEscolhido;
+        const pago = document.createElement('div');
+        pago.className = 'aviso info';
+        pago.textContent = `Forma de pagamento escolhida: ${forma}. O item fica reservado (sem prazo) até você registrar a venda, cancelar a reserva ou reabrir o item.`;
+        item.appendChild(pago);
+      }
+
       if (r.avisoPendente) {
         const aviso = document.createElement('div');
         aviso.className = 'aviso info';
@@ -296,7 +306,7 @@
   }
 
   async function reabrir() {
-    if (!confirm('Reabrir este item para venda?')) return;
+    if (!confirm('Reabrir este item para venda? A reserva ativa, se houver, será cancelada e o próximo da fila recebe a reserva.')) return;
     try {
       produtoAtual = await api(`/admin/api/produtos/${produtoAtual.id}/reabrir`, { method: 'POST' });
       await abrirProduto(produtoAtual.id);

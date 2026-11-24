@@ -48,6 +48,20 @@ function telefoneInternacional(telefone) {
   return digitos.length <= 11 ? `55${digitos}` : digitos;
 }
 
+function formatarCpf(digitos) {
+  return digitos.length === 11
+    ? `${digitos.slice(0, 3)}.${digitos.slice(3, 6)}.${digitos.slice(6, 9)}-${digitos.slice(9)}`
+    : digitos;
+}
+
+// 5548984443883 -> (48) 984443883
+function formatarTelefoneBr(numero) {
+  const local = numero.startsWith('55') && numero.length > 11 ? numero.slice(2) : numero;
+  return local.length >= 10 ? `(${local.slice(0, 2)}) ${local.slice(2)}` : local;
+}
+
+const FORMAS_WHATSAPP = { link: 'cartao_link', local: 'cartao_local' };
+
 function criarApp({ config, db, mp = null, agora = () => new Date() }) {
   const servico = criarServico({ db, reservaHoras: config.reservaHoras });
   const app = express();
@@ -97,7 +111,7 @@ function criarApp({ config, db, mp = null, agora = () => new Date() }) {
 
   const ins = {
     produto: db.prepare(
-      'INSERT INTO products (nome, descricao, preco_avista_cents, prazo_entrega, status, publicado, criado_em, link_cartao) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO products (nome, descricao, preco_avista_cents, prazo_entrega, status, publicado, criado_em) VALUES (?, ?, ?, ?, ?, ?, ?)'
     ),
     foto: db.prepare('INSERT INTO photos (product_id, arquivo, ordem) VALUES (?, ?, ?)'),
     pagamento: db.prepare(
@@ -187,7 +201,6 @@ function criarApp({ config, db, mp = null, agora = () => new Date() }) {
       cartao: opcoesCartao.length ? opcoesCartao : null,
       cartaoModo: modoJuros,
       cartaoLinkTarifa: cartaoLinkTarifaTexto,
-      linkCartao: produto.link_cartao || null,
       cartaoParcelasMax: config.mercadoPago.parcelasMax,
       pix: Boolean(config.pix.chave),
     };
@@ -220,7 +233,6 @@ function criarApp({ config, db, mp = null, agora = () => new Date() }) {
       precoAvistaCents: produto.preco_avista_cents,
       precoAvistaTexto: produto.preco_avista_cents ? formatBRL(produto.preco_avista_cents) : '',
       prazoEntrega: produto.prazo_entrega,
-      linkCartao: produto.link_cartao || '',
       status: produto.status,
       publicado: produto.publicado === 1,
       fotos: fotosPublicas(produto.id),
@@ -319,7 +331,11 @@ function criarApp({ config, db, mp = null, agora = () => new Date() }) {
     const produtoId = Number(req.params.id);
     const reserva = reservaDoCookie(req, produtoId);
     if (!reserva || reserva.product_id !== produtoId) return res.json({ status: null });
-    const resposta = { status: reserva.status, expiraEm: reserva.expira_em };
+    const resposta = {
+      status: reserva.status,
+      expiraEm: reserva.expira_em,
+      pagamentoEscolhido: reserva.pagamento_escolhido || null,
+    };
     const produto = sel.produtoPublicado.get(produtoId);
     if (reserva.status === 'ativa' && produto && config.mercadoPago.modoJuros === 'link') {
       const links = linksWhatsAppCartao(produto, reserva);
@@ -346,6 +362,7 @@ function criarApp({ config, db, mp = null, agora = () => new Date() }) {
         valorCents: valor,
       });
       ins.pagamento.run(reserva.id, 'pix', valor, 1, 'pendente', null, null, agora().toISOString());
+      servico.fixarPorPagamento(reserva.id, 'pix');
       const qrSvg = await QRCode.toString(copiaECola, { type: 'svg', margin: 1, errorCorrectionLevel: 'M' });
       res.json({
         valorTexto: formatBRL(valor),
@@ -353,7 +370,36 @@ function criarApp({ config, db, mp = null, agora = () => new Date() }) {
         qrSvg,
         instrucao:
           'Pague pelo copia e cola no app do seu banco. Após o pagamento, o vendedor confirma o recebimento e sua compra é registrada.',
+        atencao: {
+          destinatario: [config.pix.titular, config.pix.banco, config.pix.cpf && `CPF ${formatarCpf(config.pix.cpf)}`]
+            .filter(Boolean)
+            .join(', '),
+          comprovanteTelefone: formatarTelefoneBr(config.whatsappNumero),
+          comprovanteLink: linkWhatsApp(
+            config.whatsappNumero,
+            `Olá! Segue o comprovante do Pix do item "${produto.nome}" (${formatBRL(valor)}).`
+          ),
+        },
       });
+    })
+  );
+
+  // Cartão pelo WhatsApp (pedir o link ou pagar no local): registra a escolha e fixa a reserva.
+  app.post(
+    '/api/produtos/:id/pagar/whatsapp',
+    envolver((req, res) => {
+      const produtoId = Number(req.params.id);
+      const produto = sel.produtoPublicado.get(produtoId);
+      if (!produto) throw new ErroNegocio('Produto não disponível', 'nao_publicado');
+      const forma = FORMAS_WHATSAPP[req.body && req.body.opcao];
+      if (!forma) throw new ErroNegocio('Opção de pagamento inválida', 'dados');
+      const reserva = servico.exigirReservaAtiva(req.cookies[cookieReserva(produtoId)], produtoId, agora());
+      const links = linksWhatsAppCartao(produto, reserva);
+      if (!links) throw new ErroNegocio('Preço ainda não definido', 'sem_preco');
+      const valor = opcoesDePreco(produto).cartao[0].totalCents;
+      ins.pagamento.run(reserva.id, 'cartao', valor, 1, 'pendente', null, null, agora().toISOString());
+      servico.fixarPorPagamento(reserva.id, forma);
+      res.json({ link: req.body.opcao === 'link' ? links.solicitarLink : links.pagamentoNoLocal });
     })
   );
 
@@ -515,21 +561,8 @@ function criarApp({ config, db, mp = null, agora = () => new Date() }) {
         throw new ErroNegocio('Preço à vista inválido. Use, por exemplo, 2.500,00', 'dados');
       }
     }
-    const linkCartao = String(body.linkCartao ?? existente?.link_cartao ?? '').trim();
-    if (linkCartao) {
-      let u;
-      try {
-        u = new URL(linkCartao);
-      } catch (erro) {
-        u = null;
-      }
-      if (!u || u.protocol !== 'https:') {
-        throw new ErroNegocio('O link do cartão deve começar com https:// (link de pagamento do Mercado Pago)', 'dados');
-      }
-    }
     return {
       nome,
-      linkCartao,
       descricao: String(body.descricao ?? existente?.descricao ?? '').trim(),
       precoAvista: preco,
       prazoEntrega: String(body.prazoEntrega ?? existente?.prazo_entrega ?? '').trim(),
@@ -548,8 +581,7 @@ function criarApp({ config, db, mp = null, agora = () => new Date() }) {
         campos.prazoEntrega,
         'disponivel',
         campos.publicado,
-        agora().toISOString(),
-        campos.linkCartao
+        agora().toISOString()
       );
       res.status(201).json(produtoAdmin(sel.produto.get(Number(info.lastInsertRowid))));
     })
@@ -562,14 +594,13 @@ function criarApp({ config, db, mp = null, agora = () => new Date() }) {
       if (!existente) return res.status(404).json({ erro: 'Produto não encontrado' });
       const campos = lerCamposProduto(req.body, existente);
       db.prepare(
-        'UPDATE products SET nome = ?, descricao = ?, preco_avista_cents = ?, prazo_entrega = ?, publicado = ?, link_cartao = ? WHERE id = ?'
+        'UPDATE products SET nome = ?, descricao = ?, preco_avista_cents = ?, prazo_entrega = ?, publicado = ? WHERE id = ?'
       ).run(
         campos.nome,
         campos.descricao,
         campos.precoAvista,
         campos.prazoEntrega,
         campos.publicado,
-        campos.linkCartao,
         existente.id
       );
       return res.json(produtoAdmin(sel.produto.get(existente.id)));
@@ -581,7 +612,7 @@ function criarApp({ config, db, mp = null, agora = () => new Date() }) {
     envolver((req, res) => {
       const produto = sel.produto.get(Number(req.params.id));
       if (!produto) return res.status(404).json({ erro: 'Produto não encontrado' });
-      servico.reabrirProduto(produto.id);
+      servico.reabrirProduto(produto.id, agora());
       return res.json(produtoAdmin(sel.produto.get(produto.id)));
     })
   );
@@ -700,6 +731,7 @@ function criarApp({ config, db, mp = null, agora = () => new Date() }) {
         status: r.status,
         expiraEm: r.expira_em,
         avisoPendente: r.aviso_pendente === 1,
+        pagamentoEscolhido: r.pagamento_escolhido || null,
         whatsappLink: linkWhatsApp(numero, texto),
       };
     });

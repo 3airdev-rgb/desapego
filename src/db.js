@@ -62,6 +62,10 @@ function openDb(file) {
   // Migração: link de pagamento do Mercado Pago por produto.
   const colunas = db.prepare('PRAGMA table_info(products)').all().map((c) => c.name);
   if (!colunas.includes('link_cartao')) db.exec("ALTER TABLE products ADD COLUMN link_cartao TEXT NOT NULL DEFAULT ''");
+  // Migração: forma de pagamento escolhida (pix, cartao_link, cartao_local). Com ela preenchida,
+  // a reserva deixa de expirar e só termina com a venda, o cancelamento ou a reabertura do item.
+  const colunasReserva = db.prepare('PRAGMA table_info(reservations)').all().map((c) => c.name);
+  if (!colunasReserva.includes('pagamento_escolhido')) db.exec('ALTER TABLE reservations ADD COLUMN pagamento_escolhido TEXT');
   return db;
 }
 

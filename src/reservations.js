@@ -44,6 +44,12 @@ function criarServico({ db, reservaHoras }) {
       "UPDATE reservations SET status = 'ativa', expira_em = ?, aviso_pendente = 1 WHERE id = ?"
     ),
     reservaAvisoOk: db.prepare('UPDATE reservations SET aviso_pendente = 0 WHERE id = ?'),
+    reservaFixar: db.prepare(
+      "UPDATE reservations SET expira_em = NULL, pagamento_escolhido = ? WHERE id = ? AND status = 'ativa'"
+    ),
+    ativasCancelar: db.prepare(
+      "UPDATE reservations SET status = 'cancelada' WHERE product_id = ? AND status = 'ativa'"
+    ),
     reservaNova: db.prepare(
       'INSERT INTO reservations (product_id, token, nome, telefone, status, criada_em, expira_em) VALUES (?, ?, ?, ?, ?, ?, ?)'
     ),
@@ -157,10 +163,19 @@ function criarServico({ db, reservaHoras }) {
     upd.filaCancelar.run(reserva.product_id);
   }
 
-  /** Liberação manual de um item vendido (volta a disponível). */
-  function reabrirProduto(productId) {
+  /**
+   * O comprador escolheu a forma de pagamento: a reserva deixa de expirar (expira_em nulo) e o
+   * item fica bloqueado para os demais até a venda, o cancelamento ou a reabertura pelo painel.
+   */
+  function fixarPorPagamento(reservaId, forma) {
+    upd.reservaFixar.run(forma, reservaId);
+  }
+
+  /** Liberação manual do item: cancela a reserva ativa, volta a disponível e promove a fila. */
+  function reabrirProduto(productId, agora = new Date()) {
+    upd.ativasCancelar.run(productId);
     upd.produtoStatus.run('disponivel', productId);
-    return promoverProximo(productId);
+    return promoverProximo(productId, agora);
   }
 
   function marcarAvisoEnviado(reservaId) {
@@ -183,6 +198,7 @@ function criarServico({ db, reservaHoras }) {
     cancelar,
     converterVenda,
     reabrirProduto,
+    fixarPorPagamento,
     marcarAvisoEnviado,
     filaDoProduto,
     ErroNegocio,

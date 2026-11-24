@@ -38,7 +38,7 @@ async function iniciarServidor(modoJuros = 'embutido') {
     adminPassword: 'senha-teste',
     reservaHoras: 48,
     whatsappNumero: '5548984443883',
-    pix: { chave: 'teste@exemplo.com', nomeRecebedor: 'CLEO M GARCIA', cidade: 'FLORIANOPOLIS' },
+    pix: { chave: 'teste@exemplo.com', nomeRecebedor: 'CLEO M GARCIA', cidade: 'FLORIANOPOLIS', titular: 'Cleo Marcus Garcia', banco: 'Banco Inter', cpf: '03292966981' },
     linkCartao: { tarifaPct: 4.98, jurosPct: { 2: 9.64, 3: 11.23, 4: 11.36, 5: 14.31, 6: 15 }, parcelasMax: 6 },
     mercadoPago: { accessToken: 'token-teste', taxasPct: { 1: 4.98, 2: 7.51, 3: 9.6, 4: 11.67, 5: 13.64, 6: 14.94 }, parcelasMax: 6, modoJuros },
   };
@@ -334,18 +334,14 @@ test('modo link: valores do simulador do Mercado Pago, link por produto e venda 
   const admin = (r.headers.getSetCookie() || []).map((c) => c.split(';')[0]).join('; ');
   r = await fetch(`${base}/admin/api/produtos`, {
     method: 'POST', headers: { ...H, Cookie: admin },
-    body: JSON.stringify({ nome: 'JBL Xtreme', precoAvista: '520', publicado: true, linkCartao: 'http://inseguro.com' }),
-  });
-  assert.equal(r.status, 400, 'link http é recusado');
-  r = await fetch(`${base}/admin/api/produtos`, {
-    method: 'POST', headers: { ...H, Cookie: admin },
     body: JSON.stringify({ nome: 'JBL Xtreme', precoAvista: '520', publicado: true, linkCartao: 'https://mpago.la/abc123' }),
   });
   assert.equal(r.status, 201);
+  assert.equal((await r.json()).linkCartao, undefined, 'o painel não tem mais link de pagamento');
   r = await fetch(`${base}/api/produtos`);
   const [p] = await r.json();
   assert.equal(p.precos.cartaoModo, 'link');
-  assert.equal(p.precos.linkCartao, 'https://mpago.la/abc123');
+  assert.equal(p.precos.linkCartao, undefined);
   const por = Object.fromEntries(p.precos.cartao.map((c) => [c.parcelas, c]));
   assert.equal(por[1].totalCents, 54725);
   assert.equal(por[2].valorParcelaCents, 30000);
@@ -402,4 +398,59 @@ test('modo link: com reserva ativa, links de WhatsApp para pedir o link ou pagar
     texto(estado.whatsappCartao.pagamentoNoLocal).replace(/\s/g, ' '),
     `Olá sou Ana Souza e quero adquirir o produto JBL Xtreme com o valor de ${avista} para pagamento com cartão direto a você.`.replace(/\s/g, ' ')
   );
+});
+
+test('escolher Pix ou WhatsApp fixa a reserva, bloqueia outros e o Pix traz o aviso do destinatário', async (t) => {
+  const s = await iniciarServidor('link');
+  t.after(() => s.fechar());
+  const { base } = s;
+  const H = { 'Content-Type': 'application/json' };
+  let r = await fetch(`${base}/admin/api/login`, { method: 'POST', headers: H, body: JSON.stringify({ senha: 'senha-teste' }) });
+  const admin = cookieDe(r);
+  const criar = async (nome) => {
+    const resp = await fetch(`${base}/admin/api/produtos`, { method: 'POST', headers: { ...H, Cookie: admin }, body: JSON.stringify({ nome, precoAvista: '520', publicado: true }) });
+    return (await resp.json()).id;
+  };
+  const interesse = async (id, nome) => cookieDe(await fetch(`${base}/api/produtos/${id}/interesse`, { method: 'POST', headers: H, body: JSON.stringify({ nome, telefone: '48999991111' }) }));
+  const reservaDe = (id) => s.db.prepare("SELECT * FROM reservations WHERE product_id = ? AND status = 'ativa'").get(id);
+
+  // Pix
+  const tv = await criar('Smart TV');
+  const ana = await interesse(tv, 'Ana Souza');
+  const bruno = await interesse(tv, 'Bruno Lima');
+  r = await fetch(`${base}/api/produtos/${tv}/pagar/pix`, { method: 'POST', headers: { ...H, Cookie: ana } });
+  assert.equal(r.status, 200);
+  const pix = await r.json();
+  assert.equal(pix.atencao.destinatario, 'Cleo Marcus Garcia, Banco Inter, CPF 032.929.669-81');
+  assert.equal(pix.atencao.comprovanteTelefone, '(48) 984443883');
+  assert.match(pix.atencao.comprovanteLink, /^https:\/\/wa\.me\/5548984443883/);
+  assert.equal(reservaDe(tv).expira_em, null);
+  assert.equal(reservaDe(tv).pagamento_escolhido, 'pix');
+  r = await fetch(`${base}/api/produtos/${tv}/pagar/pix`, { method: 'POST', headers: { ...H, Cookie: bruno } });
+  assert.equal(r.status, 400, 'quem está na fila não paga');
+  r = await fetch(`${base}/api/produtos/${tv}/minha-reserva`, { headers: { Cookie: ana } });
+  const estado = await r.json();
+  assert.equal(estado.status, 'ativa');
+  assert.equal(estado.pagamentoEscolhido, 'pix');
+
+  // Cartão pelo WhatsApp
+  const sofa = await criar('Sofa');
+  const carla = await interesse(sofa, 'Carla');
+  r = await fetch(`${base}/api/produtos/${sofa}/pagar/whatsapp`, { method: 'POST', headers: { ...H, Cookie: carla }, body: JSON.stringify({ opcao: 'invalida' }) });
+  assert.equal(r.status, 400);
+  r = await fetch(`${base}/api/produtos/${sofa}/pagar/whatsapp`, { method: 'POST', headers: { ...H, Cookie: carla }, body: JSON.stringify({ opcao: 'local' }) });
+  assert.equal(r.status, 200);
+  assert.equal(reservaDe(sofa).expira_em, null);
+  assert.equal(reservaDe(sofa).pagamento_escolhido, 'cartao_local');
+  const pg = s.db.prepare('SELECT * FROM payments WHERE reservation_id = ?').get(reservaDe(sofa).id);
+  assert.equal(pg.metodo, 'cartao');
+  assert.equal(pg.valor_cents, 54725);
+  r = await fetch(`${base}/api/produtos/${sofa}/pagar/whatsapp`, { method: 'POST', headers: H, body: JSON.stringify({ opcao: 'link' }) });
+  assert.equal(r.status, 400, 'sem reserva não registra');
+
+  // Reabrir libera
+  r = await fetch(`${base}/admin/api/produtos/${sofa}/reabrir`, { method: 'POST', headers: { ...H, Cookie: admin } });
+  assert.equal(r.status, 200);
+  assert.equal((await r.json()).status, 'disponivel');
+  assert.equal(reservaDe(sofa), undefined);
 });

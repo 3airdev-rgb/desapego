@@ -123,3 +123,24 @@ test('fila cresce na ordem de chegada e a lista mostra ativa primeiro', () => {
   const nomes = servico.filaDoProduto(produto.id).map((r) => r.nome);
   assert.deepEqual(nomes, ['Ana', 'Bruno', 'Carla']);
 });
+
+test('escolhida a forma de pagamento, a reserva não expira até venda ou reabertura', () => {
+  const { servico, produto, db } = preparar();
+  const { reserva } = servico.registrarInteresse({ productId: produto.id, nome: 'Ana', telefone: '48999991111', agora: t0 });
+  servico.registrarInteresse({ productId: produto.id, nome: 'Bruno', telefone: '48988882222', agora: t0 });
+  servico.fixarPorPagamento(reserva.id, 'pix', horas(1));
+
+  const fixada = db.prepare('SELECT * FROM reservations WHERE id = ?').get(reserva.id);
+  assert.equal(fixada.expira_em, null);
+  assert.equal(fixada.pagamento_escolhido, 'pix');
+
+  servico.expirarVencidas(horas(500));
+  assert.equal(db.prepare('SELECT status FROM reservations WHERE id = ?').get(reserva.id).status, 'ativa');
+  assert.equal(db.prepare('SELECT status FROM products WHERE id = 1').get().status, 'reservado');
+
+  // Reabrir libera o item: a reserva fixada é cancelada e o próximo da fila é promovido.
+  const promovidas = servico.reabrirProduto(produto.id, horas(500));
+  assert.equal(db.prepare('SELECT status FROM reservations WHERE id = ?').get(reserva.id).status, 'cancelada');
+  assert.equal(promovidas[0].nome, 'Bruno');
+  assert.equal(db.prepare('SELECT status FROM products WHERE id = 1').get().status, 'reservado');
+});

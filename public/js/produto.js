@@ -210,7 +210,9 @@
     if (estado && estado.status === 'ativa') {
       aviso(
         bloco,
-        `Item reservado para você até ${dataHora(estado.expiraEm)}. Escolha a forma de pagamento abaixo.`,
+        estado.pagamentoEscolhido
+          ? 'Item reservado para você. Forma de pagamento escolhida: aguardando a confirmação do vendedor.'
+          : `Item reservado para você até ${dataHora(estado.expiraEm)}. Escolha a forma de pagamento abaixo.`,
         'sucesso'
       );
       mostrarPagamento();
@@ -313,21 +315,45 @@
       '<p class="suave">As duas opções abrem uma conversa no WhatsApp com o vendedor, já com o item e o valor do cartão à vista.</p>' +
       '<div class="acoes-popup"></div>';
     const acoes = caixa.querySelector('.acoes-popup');
-    // Links montados pelo servidor com o nome do cadastro da reserva (ver /minha-reserva).
+    // A escolha é registrada no servidor (a reserva deixa de expirar) e só então o WhatsApp abre,
+    // com a mensagem montada pelo servidor (nome da reserva, item e valor do cartão à vista).
     const links = reservaAtual && reservaAtual.whatsappCartao;
-    const botaoWhatsApp = (texto, href) => {
-      const a = document.createElement('a');
-      a.className = 'botao';
-      a.textContent = texto;
-      a.href = href;
-      a.target = '_blank';
-      a.rel = 'noopener';
-      a.addEventListener('click', () => fundo.remove());
-      return a;
+    const erro = document.createElement('div');
+    erro.className = 'aviso erro oculto';
+    const botaoWhatsApp = (texto, opcao) => {
+      const b = document.createElement('button');
+      b.className = 'botao';
+      b.type = 'button';
+      b.textContent = texto;
+      b.addEventListener('click', async () => {
+        // A janela é aberta já no clique, para o navegador não bloquear como pop-up.
+        const janela = window.open('', '_blank');
+        b.disabled = true;
+        try {
+          const r = await chamar(`/api/produtos/${produtoId}/pagar/whatsapp`, {
+            method: 'POST',
+            body: JSON.stringify({ opcao }),
+          });
+          if (janela) {
+            janela.opener = null;
+            janela.location.href = r.link;
+          } else {
+            window.location.href = r.link;
+          }
+          fundo.remove();
+          carregarProduto();
+        } catch (e) {
+          if (janela) janela.close();
+          aviso(erro, e.message, 'erro');
+          b.disabled = false;
+        }
+      });
+      return b;
     };
     if (links) {
-      acoes.appendChild(botaoWhatsApp('Solicitar o link de pagamento', links.solicitarLink));
-      acoes.appendChild(botaoWhatsApp('Pagamento no local', links.pagamentoNoLocal));
+      acoes.appendChild(botaoWhatsApp('Solicitar o link de pagamento', 'link'));
+      acoes.appendChild(botaoWhatsApp('Pagamento no local', 'local'));
+      acoes.appendChild(erro);
     } else {
       const aviso = document.createElement('p');
       aviso.className = 'suave';
@@ -402,29 +428,75 @@
     }
   });
 
+  function abrirPopupPix(pix) {
+    const fundo = document.createElement('div');
+    fundo.className = 'popup-fundo';
+    const caixa = document.createElement('div');
+    caixa.className = 'popup';
+    caixa.setAttribute('role', 'dialog');
+    caixa.setAttribute('aria-modal', 'true');
+    caixa.innerHTML =
+      '<h2>Pagamento com Pix</h2>' +
+      '<p>Valor: <strong data-campo="valor"></strong></p>' +
+      '<div class="aviso atencao"><strong>Atenção</strong>' +
+      '<p data-campo="destinatario"></p>' +
+      '<p>Após efetivar o pagamento, compartilhe o comprovante com <a data-campo="telefone" target="_blank" rel="noopener"></a>.</p></div>' +
+      '<p class="suave">Escaneie o QR code ou copie o código abaixo no app do seu banco.</p>' +
+      '<div data-campo="qr" style="max-width:240px;margin:10px auto" aria-label="QR code do Pix"></div>' +
+      '<div class="copia-cola" data-campo="codigo"></div>' +
+      '<div class="acoes-popup"></div>' +
+      '<p class="suave" data-campo="instrucao"></p>';
+    const campo = (nome) => caixa.querySelector(`[data-campo="${nome}"]`);
+    campo('valor').textContent = pix.valorTexto;
+    const destinatario = campo('destinatario');
+    if (pix.atencao.destinatario) {
+      destinatario.textContent = `Verifique se o destinatário do PIX é ${pix.atencao.destinatario}.`;
+    } else {
+      destinatario.remove();
+    }
+    campo('telefone').textContent = pix.atencao.comprovanteTelefone;
+    campo('telefone').href = pix.atencao.comprovanteLink;
+    campo('qr').innerHTML = pix.qrSvg; // SVG gerado pelo servidor (biblioteca qrcode)
+    campo('codigo').textContent = pix.copiaECola;
+    campo('instrucao').textContent = pix.instrucao;
+
+    const acoes = caixa.querySelector('.acoes-popup');
+    const copiar = document.createElement('button');
+    copiar.className = 'botao';
+    copiar.type = 'button';
+    copiar.textContent = 'Copiar código Pix';
+    copiar.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(pix.copiaECola);
+        copiar.textContent = 'Código copiado';
+      } catch (erro) {
+        copiar.textContent = 'Selecione o código acima e copie';
+      }
+    });
+    const fechar = document.createElement('button');
+    fechar.className = 'botao secundario';
+    fechar.type = 'button';
+    fechar.textContent = 'Fechar';
+    fechar.addEventListener('click', () => fundo.remove());
+    acoes.appendChild(copiar);
+    acoes.appendChild(fechar);
+    fundo.addEventListener('click', (e) => { if (e.target === fundo) fundo.remove(); });
+    fundo.appendChild(caixa);
+    document.body.appendChild(fundo);
+  }
+
   $('btnPix').addEventListener('click', async () => {
     const botao = $('btnPix');
     botao.disabled = true;
     try {
       const pix = await chamar(`/api/produtos/${produtoId}/pagar/pix`, { method: 'POST' });
-      $('qrPix').innerHTML = pix.qrSvg;
-      $('copiaCola').textContent = pix.copiaECola;
-      $('instrucaoPix').textContent = pix.instrucao;
-      $('blocoPix').classList.remove('oculto');
-      aviso($('aviso'), `Valor: ${pix.valorTexto}`, 'info');
+      abrirPopupPix(pix);
+      $('aviso').classList.add('oculto');
+      carregarProduto();
     } catch (erro) {
       aviso($('aviso'), erro.message, 'erro');
     } finally {
       botao.disabled = false;
-    }
-  });
-
-  $('btnCopiar').addEventListener('click', async () => {
-    try {
-      await navigator.clipboard.writeText($('copiaCola').textContent);
-      $('btnCopiar').textContent = 'Código copiado';
-    } catch (erro) {
-      aviso($('aviso'), 'Não foi possível copiar. Selecione o código manualmente.', 'erro');
     }
   });
 

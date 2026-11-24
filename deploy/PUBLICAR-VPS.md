@@ -21,7 +21,7 @@ Nada aqui instala Nginx, Caddy ou Certbot, usa as portas 80/443 ou mexe no Arrem
 
 ## 3. Variáveis de ambiente (arquivo `.env.vps`, só os nomes)
 Obrigatórias: `PUBLIC_BASE_URL` (https://desapego.arrivoinitalia.com), `ADMIN_PASSWORD` (12+ caracteres), `PIX_CHAVE`, `PIX_NOME`, `PIX_CIDADE`, `WHATSAPP_NUMERO`.
-Opcionais: `RESERVA_HORAS` (48), `MP_MODO_JUROS` (`link`), `LINK_JUROS_6X`, `LINK_TARIFA_PCT`, `LINK_JUROS_PARCELAS`.
+Opcionais: `PIX_TITULAR`, `PIX_BANCO` e `PIX_CPF` (aviso "Atenção" do Pix), `RESERVA_HORAS` (48), `MP_MODO_JUROS` (`link`), `LINK_JUROS_6X`, `LINK_TARIFA_PCT`, `LINK_JUROS_PARCELAS`.
 Definidas pelo compose (não colocar no `.env.vps`): `PORT=3111`, `HOST=0.0.0.0`, `DATA_DIR=/app/data`.
 
 ## 4. Primeiro envio e início
