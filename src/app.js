@@ -297,10 +297,35 @@ function criarApp({ config, db, mp = null, agora = () => new Date() }) {
     })
   );
 
+  // Cartão sem link cadastrado: o comprador fala com o vendedor pelo WhatsApp, com o nome do
+  // cadastro da reserva e o valor do cartão à vista já preenchidos na mensagem.
+  function linksWhatsAppCartao(produto, reserva) {
+    const cartao = opcoesDePreco(produto).cartao;
+    if (!cartao) return null;
+    const valor = cartao[0].totalTexto;
+    return {
+      solicitarLink: linkWhatsApp(
+        config.whatsappNumero,
+        `Olá sou ${reserva.nome} gostaria de receber o link de pagamento para o produto ${produto.nome} com o valor de ${valor}`
+      ),
+      pagamentoNoLocal: linkWhatsApp(
+        config.whatsappNumero,
+        `Olá sou ${reserva.nome} e quero adquirir o produto ${produto.nome} com o valor de ${valor} para pagamento com cartão direto a você.`
+      ),
+    };
+  }
+
   app.get('/api/produtos/:id/minha-reserva', (req, res) => {
-    const reserva = reservaDoCookie(req, Number(req.params.id));
-    if (!reserva) return res.json({ status: null });
-    return res.json({ status: reserva.status, expiraEm: reserva.expira_em });
+    const produtoId = Number(req.params.id);
+    const reserva = reservaDoCookie(req, produtoId);
+    if (!reserva || reserva.product_id !== produtoId) return res.json({ status: null });
+    const resposta = { status: reserva.status, expiraEm: reserva.expira_em };
+    const produto = sel.produtoPublicado.get(produtoId);
+    if (reserva.status === 'ativa' && produto && config.mercadoPago.modoJuros === 'link') {
+      const links = linksWhatsAppCartao(produto, reserva);
+      if (links) resposta.whatsappCartao = links;
+    }
+    return res.json(resposta);
   });
 
   app.post(

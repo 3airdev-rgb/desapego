@@ -364,3 +364,42 @@ test('modo link: valores do simulador do Mercado Pago, link por produto e venda 
   assert.equal(r.status, 200);
   assert.equal(s.db.prepare('SELECT metodo FROM payments').all()[0].metodo, 'cartao');
 });
+
+test('modo link: com reserva ativa, links de WhatsApp para pedir o link ou pagar no local', async (t) => {
+  const s = await iniciarServidor('link');
+  t.after(() => s.fechar());
+  const { base } = s;
+  const H = { 'Content-Type': 'application/json' };
+  let r = await fetch(`${base}/admin/api/login`, { method: 'POST', headers: H, body: JSON.stringify({ senha: 'senha-teste' }) });
+  const admin = (r.headers.getSetCookie() || []).map((c) => c.split(';')[0]).join('; ');
+  r = await fetch(`${base}/admin/api/produtos`, {
+    method: 'POST', headers: { ...H, Cookie: admin },
+    body: JSON.stringify({ nome: 'JBL Xtreme', precoAvista: '520', publicado: true }),
+  });
+  const { id } = await r.json();
+
+  // Sem reserva, nenhum link é exposto.
+  r = await fetch(`${base}/api/produtos/${id}/minha-reserva`);
+  assert.equal((await r.json()).whatsappCartao, undefined);
+
+  r = await fetch(`${base}/api/produtos/${id}/interesse`, { method: 'POST', headers: H, body: JSON.stringify({ nome: 'Ana Souza', telefone: '48999991111' }) });
+  const cookie = (r.headers.getSetCookie() || []).map((c) => c.split(';')[0]).join('; ');
+  r = await fetch(`${base}/api/produtos/${id}/minha-reserva`, { headers: { Cookie: cookie } });
+  const estado = await r.json();
+  assert.equal(estado.status, 'ativa');
+
+  const texto = (link) => {
+    const u = new URL(link);
+    assert.equal(u.origin + u.pathname, 'https://wa.me/5548984443883');
+    return u.searchParams.get('text');
+  };
+  const avista = 'R$\u00a0547,25'; // cartão à vista (Pix 520 + tarifa 4,98%)
+  assert.equal(
+    texto(estado.whatsappCartao.solicitarLink).replace(/\s/g, ' '),
+    `Olá sou Ana Souza gostaria de receber o link de pagamento para o produto JBL Xtreme com o valor de ${avista}`.replace(/\s/g, ' ')
+  );
+  assert.equal(
+    texto(estado.whatsappCartao.pagamentoNoLocal).replace(/\s/g, ' '),
+    `Olá sou Ana Souza e quero adquirir o produto JBL Xtreme com o valor de ${avista} para pagamento com cartão direto a você.`.replace(/\s/g, ' ')
+  );
+});

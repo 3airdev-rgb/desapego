@@ -310,34 +310,36 @@
       '(tarifa de processamento e, no parcelamento, juros). Valores para este item, que no Pix custa ' +
       `${precos.avista.texto}:</p>` +
       `<table class="tabela-parcelas"><thead><tr><th>Forma</th><th>Valor</th></tr></thead><tbody>${linhas}</tbody></table>` +
-      '<p class="suave">Os valores finais são confirmados na página do Mercado Pago antes do pagamento.</p>' +
-      '<div class="linha"></div>';
-    const acoes = caixa.querySelector('.linha');
+      '<p class="suave">As duas opções abrem uma conversa no WhatsApp com o vendedor, já com o item e o valor do cartão à vista.</p>' +
+      '<div class="acoes-popup"></div>';
+    const acoes = caixa.querySelector('.acoes-popup');
+    // Links montados pelo servidor com o nome do cadastro da reserva (ver /minha-reserva).
+    const links = reservaAtual && reservaAtual.whatsappCartao;
+    const botaoWhatsApp = (texto, href) => {
+      const a = document.createElement('a');
+      a.className = 'botao';
+      a.textContent = texto;
+      a.href = href;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.addEventListener('click', () => fundo.remove());
+      return a;
+    };
+    if (links) {
+      acoes.appendChild(botaoWhatsApp('Solicitar o link de pagamento', links.solicitarLink));
+      acoes.appendChild(botaoWhatsApp('Pagamento no local', links.pagamentoNoLocal));
+    } else {
+      const aviso = document.createElement('p');
+      aviso.className = 'suave';
+      aviso.textContent = 'Não foi possível montar a mensagem. Recarregue a página ou fale com o vendedor pelo WhatsApp.';
+      acoes.appendChild(aviso);
+    }
     const fechar = document.createElement('button');
     fechar.className = 'botao secundario';
     fechar.type = 'button';
     fechar.textContent = 'Voltar';
-    fechar.style.width = 'auto';
     fechar.addEventListener('click', () => fundo.remove());
-    const seguir = document.createElement('button');
-    seguir.className = 'botao';
-    seguir.type = 'button';
-    seguir.style.width = 'auto';
-    seguir.textContent = 'Realizar pagamento';
-    if (precos.linkCartao) {
-      seguir.addEventListener('click', () => {
-        window.open(precos.linkCartao, '_blank', 'noopener');
-        fundo.remove();
-      });
-    } else {
-      seguir.disabled = true;
-      const aviso = document.createElement('p');
-      aviso.className = 'suave';
-      aviso.textContent = 'O link de pagamento deste item ainda não foi cadastrado. Fale com o vendedor pelo WhatsApp.';
-      caixa.insertBefore(aviso, acoes);
-    }
     acoes.appendChild(fechar);
-    acoes.appendChild(seguir);
     fundo.addEventListener('click', (e) => { if (e.target === fundo) fundo.remove(); });
     fundo.appendChild(caixa);
     document.body.appendChild(fundo);

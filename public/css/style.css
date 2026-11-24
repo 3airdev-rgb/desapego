@@ -195,6 +195,7 @@ textarea { min-height: 90px; resize: vertical; }
 .botao:hover { background: var(--laranja-escuro); }
 .botao.secundario { background: #fff; color: var(--laranja-escuro); border: 1px solid var(--laranja); }
 .botao[disabled] { opacity: 0.55; cursor: not-allowed; }
+.acoes-popup { display: flex; flex-direction: column; }
 
 .aviso { padding: 10px 12px; border-radius: 8px; font-size: 0.92rem; margin-top: 10px; }
 .aviso.erro { background: #fbeaea; color: var(--vermelho); }
